@@ -15,6 +15,7 @@ from bluetti_mqtt.core import BluettiDevice, DeviceCommand
 COMMAND_TOPIC_RE = re.compile(r'^bluetti/command/(\w+)-(\d+)/([a-z_]+)$')
 SECONDS_PER_HOUR = 3600
 
+
 class MQTTClient:
     message_queue: asyncio.Queue
     value_cache = {}
@@ -302,27 +303,41 @@ class MQTTClient:
                                  )
 
             await client.publish(f'homeassistant/switch/{d.sn}_dc_output_on/config',
-                        payload=payload(
-                            id='dc_output_on',
-                            device=d,
-                            name='DC Output',
-                            device_class='outlet')
-                            .encode(),
-                        retain=True
-                        )
+                                 payload=payload(
+                                     id='dc_output_on',
+                                     device=d,
+                                     name='DC Output',
+                                     device_class='outlet')
+                                 .encode(),
+                                 retain=True
+                                 )
+
             if d.has_field_setter('led_mode'):
                 await client.publish(f'homeassistant/select/{d.sn}_led_mode/config',
-                            payload=payload(
-                                id='led_mode',
-                                device=d,
-                                name='LED Mode',
-                                icon='mdi:lightbulb',
-                                value_template= r'{{ value_json.power_on_behavior }}',
-                                options= [ 'LOW', 'HIGH', 'SOS', 'OFF' ],
-                                force_update=True)
-                            .encode(),
-                            retain=True
-                            )
+                                     payload=payload(
+                                         id='led_mode',
+                                         device=d,
+                                         name='LED Mode',
+                                         icon='mdi:lightbulb',
+                                         value_template=r'{{ value_json.power_on_behavior }}',
+                                         options=['LOW', 'HIGH', 'SOS', 'OFF'],
+                                         force_update=True)
+                                     .encode(),
+                                     retain=True
+                                     )
+
+            await client.publish(f'homeassistant/sensor/{d.sn}_total_input_energy/config',
+                                 payload=payload(
+                                     id='total_input_energy',
+                                     device=d,
+                                     name='Total Input Energy',
+                                     unit_of_measurement='Wh',
+                                     device_class='energy',
+                                     state_class="total_increasing",
+                                     force_update=True)
+                                 .encode(),
+                                 retain=True
+                                 )
 
             await client.publish(f'homeassistant/sensor/{d.sn}_total_output_energy/config',
                                  payload=payload(
@@ -374,8 +389,10 @@ class MQTTClient:
 
     async def _update_energy(self, client, now, topic_prefix,  energy_key, current_value):
         if current_value != 0:
-            state = self.calculated_energy.setdefault(energy_key, self.EnergyEntry())
-            state.watt_seconds_total += (now - state.last_value_ts).total_seconds() * ((state.last_value + current_value) / 2)
+            state = self.calculated_energy.setdefault(
+                energy_key, self.EnergyEntry())
+            state.watt_seconds_total += (now - state.last_value_ts).total_seconds() * (
+                (state.last_value + current_value) / 2)
 
             state.last_value_ts = now
             state.last_value = current_value
